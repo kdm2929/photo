@@ -4,20 +4,26 @@ from PyInstaller.utils.hooks import collect_dynamic_libs, collect_data_files, co
 binaries = collect_dynamic_libs("cv2")
 datas = [("models", "models")]
 hiddenimports = [
-    "cv2", "numpy", "core", "storage", "recognition", "scanner", "gallery_model", "ui_base",
+    "cv2", "numpy", "core", "storage", "recognition", "scanner", "gallery_model", "ui_base", "ui_pro", "main",
     "PySide6.QtCore", "PySide6.QtGui", "PySide6.QtWidgets",
     "PIL", "PIL.Image", "pillow_heif", "pillow_avif", "rawpy", "onnxruntime"
 ]
 for pkg in ("onnxruntime", "rawpy", "pillow_heif"):
-    try: binaries += collect_dynamic_libs(pkg)
-    except Exception: pass
+    try:
+        binaries += collect_dynamic_libs(pkg)
+    except Exception:
+        pass
 for pkg in ("pillow_heif", "pillow_avif"):
-    try: datas += collect_data_files(pkg)
-    except Exception: pass
-try: hiddenimports += collect_submodules("onnxruntime")
-except Exception: pass
+    try:
+        datas += collect_data_files(pkg)
+    except Exception:
+        pass
+try:
+    hiddenimports += collect_submodules("onnxruntime")
+except Exception:
+    pass
 
-a = Analysis(["main.py"], pathex=[], binaries=binaries, datas=datas, hiddenimports=hiddenimports,
+a = Analysis(["app_v06.py"], pathex=[], binaries=binaries, datas=datas, hiddenimports=hiddenimports,
              hookspath=[], hooksconfig={}, runtime_hooks=[], excludes=[], noarchive=False)
 pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, a.binaries, a.datas, [], name="PhotoRefSorter", debug=False,
