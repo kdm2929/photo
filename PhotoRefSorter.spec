@@ -1,20 +1,37 @@
 # -*- mode: python ; coding: utf-8 -*-
-from PyInstaller.utils.hooks import collect_dynamic_libs
+from PyInstaller.utils.hooks import collect_dynamic_libs, collect_data_files, collect_submodules
 
 binaries = collect_dynamic_libs("cv2")
+datas = [("models", "models")]
+hiddenimports = [
+    "cv2", "numpy", "core", "storage", "recognition", "scanner", "ui_base",
+    "PySide6.QtCore", "PySide6.QtGui", "PySide6.QtWidgets",
+    "PIL", "PIL.Image", "pillow_heif", "pillow_avif", "rawpy", "onnxruntime"
+]
+
+for pkg in ("onnxruntime", "rawpy", "pillow_heif"):
+    try:
+        binaries += collect_dynamic_libs(pkg)
+    except Exception:
+        pass
+
+for pkg in ("pillow_heif", "pillow_avif"):
+    try:
+        datas += collect_data_files(pkg)
+    except Exception:
+        pass
+
+try:
+    hiddenimports += collect_submodules("onnxruntime")
+except Exception:
+    pass
 
 a = Analysis(
     ["main.py"],
     pathex=[],
     binaries=binaries,
-    datas=[("models", "models")],
-    hiddenimports=[
-        "cv2",
-        "numpy",
-        "PySide6.QtCore",
-        "PySide6.QtGui",
-        "PySide6.QtWidgets",
-    ],
+    datas=datas,
+    hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
