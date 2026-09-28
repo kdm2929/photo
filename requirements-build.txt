@@ -2,3 +2,8 @@ PySide6==6.9.2
 opencv-contrib-python==4.12.0.88
 numpy==2.2.6
 pyinstaller==6.15.0
+Pillow>=11.3,<13
+pillow-heif==1.8.0
+pillow-avif-plugin==1.6.0
+rawpy==0.27.1
+onnxruntime-directml==1.24.4
