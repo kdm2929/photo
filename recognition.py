@@ -200,39 +200,80 @@ def match_face(v: np.ndarray, models: dict[int, PersonModel], index: Recognition
 
 
 class Clusterer:
+    """Scalable unknown-face clustering with multi-table LSH and safe fallback.
+
+    Multiple short hash tables drastically reduce the chance that two views of
+    the same person never become candidates. When the active cluster count is
+    still small, a vectorized centroid fallback gives deterministic grouping.
+    """
     def __init__(self, threshold: float = .475):
-        self.threshold = threshold
+        self.threshold = float(threshold)
         self.rng = np.random.default_rng(2929)
+
+    @staticmethod
+    def _centroid(items):
+        vs = np.vstack([x[2].embedding for x in items[-80:]]).astype(np.float32)
+        qs = np.asarray([max(.1, x[2].quality) for x in items[-80:]], np.float32)
+        cen = (vs * qs[:, None]).sum(0) / max(1e-8, float(qs.sum()))
+        cen /= max(1e-8, float(np.linalg.norm(cen)))
+        return cen.astype(np.float32)
 
     def cluster(self, items):
         if not items:
             return []
-        dim = items[0][2].embedding.size
-        planes = self.rng.normal(size=(12, dim)).astype(np.float32)
-        clusters = []; buckets: dict[int, list[int]] = {}
+        dim = int(items[0][2].embedding.size)
+        tables = 4
+        bits_per_table = 9
+        planes = self.rng.normal(size=(tables, bits_per_table, dim)).astype(np.float32)
+        clusters = []
+        buckets = [dict() for _ in range(tables)]
 
-        def key(v):
-            bits = (planes @ v) > 0; k = 0
-            for i, b in enumerate(bits):
-                if b: k |= 1 << i
-            return k
+        def keys(v):
+            out=[]
+            for t in range(tables):
+                bits=(planes[t] @ v) > 0; key=0
+                for i,b in enumerate(bits):
+                    if b: key |= 1 << i
+                out.append(key)
+            return out
+
+        def candidate_ids(v, ks):
+            cand=set()
+            for t,k in enumerate(ks):
+                cand.update(buckets[t].get(k, ()))
+                for i in range(bits_per_table):
+                    cand.update(buckets[t].get(k ^ (1 << i), ()))
+            # When the number of current identities is modest, checking all
+            # centroids is still cheap and prevents early LSH fragmentation.
+            if len(clusters) <= 512:
+                cand.update(range(len(clusters)))
+            elif len(cand) < 4 and clusters:
+                # Coarse vectorized fallback: compare against all centroids,
+                # then only keep the most promising few for exact handling.
+                cents=np.vstack([c['centroid'] for c in clusters]).astype(np.float32)
+                sims=cents @ v
+                take=min(8,len(sims))
+                idx=np.argpartition(-sims,take-1)[:take] if take else []
+                cand.update(int(i) for i in idx)
+            return cand
 
         for item in sorted(items, key=lambda x: x[2].quality, reverse=True):
-            v = item[2].embedding; k = key(v); cand = []
-            for kk in [k] + [k ^ (1 << i) for i in range(12)]:
-                cand.extend(buckets.get(kk, []))
-            best = None
-            for ci in set(cand):
-                s = float(np.dot(v, clusters[ci]["centroid"]))
-                if best is None or s > best[0]: best = (s, ci)
+            v=np.asarray(item[2].embedding,dtype=np.float32)
+            ks=keys(v)
+            cand=candidate_ids(v,ks)
+            best=None
+            for ci in cand:
+                s=float(np.dot(v,clusters[ci]['centroid']))
+                if best is None or s>best[0]: best=(s,ci)
             if best and best[0] >= self.threshold:
-                c = clusters[best[1]]; c["items"].append(item)
-                vs = np.vstack([x[2].embedding for x in c["items"][-60:]])
-                qs = np.asarray([max(.1, x[2].quality) for x in c["items"][-60:]], np.float32)
-                cen = (vs * qs[:, None]).sum(0) / qs.sum(); cen /= max(1e-8, float(np.linalg.norm(cen)))
-                c["centroid"] = cen; buckets.setdefault(k, []).append(best[1])
+                ci=best[1]; c=clusters[ci]; c['items'].append(item); c['centroid']=self._centroid(c['items'])
             else:
-                ci = len(clusters); clusters.append({"centroid": v.copy(), "items": [item]}); buckets.setdefault(k, []).append(ci)
-        out = [c for c in clusters if len(c["items"]) >= 2]
-        out.sort(key=lambda c: len(c["items"]), reverse=True)
+                ci=len(clusters); clusters.append({'centroid':v.copy(),'items':[item]})
+            for t,k in enumerate(ks):
+                arr=buckets[t].setdefault(k,[])
+                if not arr or arr[-1] != ci:
+                    arr.append(ci)
+
+        out=[c for c in clusters if len(c['items']) >= 2]
+        out.sort(key=lambda c: len(c['items']), reverse=True)
         return out
