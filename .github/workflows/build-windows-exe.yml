@@ -5,12 +5,16 @@ on:
   push:
     branches: [ "main" ]
     paths:
+      - "app_v06.py"
       - "main.py"
       - "core.py"
       - "storage.py"
       - "recognition.py"
       - "scanner.py"
+      - "gallery_model.py"
       - "ui_base.py"
+      - "ui_pro.py"
+      - "tests_v06.py"
       - "PhotoRefSorter.spec"
       - "requirements-build.txt"
       - ".github/workflows/build-windows-exe.yml"
@@ -39,9 +43,21 @@ jobs:
       - name: Static and import tests
         shell: pwsh
         run: |
-          python -m py_compile main.py core.py storage.py recognition.py scanner.py ui_base.py
-          python -c "import main, storage, recognition, scanner, ui_base; print('PhotoRefSorter', storage.VERSION); print('GPU', recognition.FaceEngine.gpu_available())"
+          python -m py_compile app_v06.py main.py core.py storage.py recognition.py scanner.py gallery_model.py ui_base.py ui_pro.py tests_v06.py
+          python -c "import app_v06, main, storage, recognition, scanner, gallery_model, ui_base, ui_pro; print('PhotoRefSorter', storage.VERSION); print('GPU', recognition.FaceEngine.gpu_available())"
           python -c "import PIL, pillow_heif, rawpy, onnxruntime; import pillow_avif; print('media runtimes OK')"
+
+      - name: Core logic tests
+        shell: pwsh
+        run: |
+          python tests_v06.py
+
+      - name: UI offscreen smoke test
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python app_v06.py --ui-smoke-test
 
       - name: Download AI models
         shell: pwsh
@@ -64,6 +80,14 @@ jobs:
           $p = Start-Process -FilePath ".\dist\PhotoRefSorter.exe" -ArgumentList "--self-test" -PassThru -Wait
           if ($p.ExitCode -ne 0) { throw "EXE self-test failed: $($p.ExitCode)" }
 
+      - name: Packaged UI smoke test
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          $p = Start-Process -FilePath ".\dist\PhotoRefSorter.exe" -ArgumentList "--ui-smoke-test" -PassThru -Wait
+          if ($p.ExitCode -ne 0) { throw "Packaged UI smoke test failed: $($p.ExitCode)" }
+
       - name: Create SHA256
         shell: pwsh
         run: |
@@ -72,7 +96,7 @@ jobs:
       - name: Upload finished EXE
         uses: actions/upload-artifact@v4
         with:
-          name: PhotoRefSorter-Windows-v0.5
+          name: PhotoRefSorter-Windows-v0.6-Pro
           path: |
             dist/PhotoRefSorter.exe
             dist/PhotoRefSorter.exe.sha256.txt
