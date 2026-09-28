@@ -23,6 +23,7 @@ jobs:
         with:
           python-version: "3.12"
           cache: "pip"
+          cache-dependency-path: "requirements-build.txt"
 
       - name: Install build dependencies
         shell: pwsh
@@ -37,7 +38,6 @@ jobs:
           Invoke-WebRequest -Uri "https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx" -OutFile "models/face_detection_yunet_2023mar.onnx"
           Invoke-WebRequest -Uri "https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models/face_recognition_sface/face_recognition_sface_2021dec.onnx" -OutFile "models/face_recognition_sface_2021dec.onnx"
           if ((Get-Item "models/face_detection_yunet_2023mar.onnx").Length -lt 100000) { throw "YuNet model download invalid" }
-          if ((Get-Item "models/face_recognition_sface/face_recognition_sface_2021dec.onnx" -ErrorAction SilentlyContinue)) { Write-Host "" }
           if ((Get-Item "models/face_recognition_sface_2021dec.onnx").Length -lt 1000000) { throw "SFace model download invalid" }
 
       - name: Build one-file EXE
