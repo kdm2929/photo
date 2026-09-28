@@ -6,6 +6,11 @@ on:
     branches: [ "main" ]
     paths:
       - "main.py"
+      - "core.py"
+      - "storage.py"
+      - "recognition.py"
+      - "scanner.py"
+      - "ui_base.py"
       - "PhotoRefSorter.spec"
       - "requirements-build.txt"
       - ".github/workflows/build-windows-exe.yml"
@@ -30,6 +35,13 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-build.txt
+
+      - name: Static and import tests
+        shell: pwsh
+        run: |
+          python -m py_compile main.py core.py storage.py recognition.py scanner.py ui_base.py
+          python -c "import main, storage, recognition, scanner, ui_base; print('PhotoRefSorter', storage.VERSION); print('GPU', recognition.FaceEngine.gpu_available())"
+          python -c "import PIL, pillow_heif, rawpy, onnxruntime; import pillow_avif; print('media runtimes OK')"
 
       - name: Download AI models
         shell: pwsh
@@ -60,7 +72,7 @@ jobs:
       - name: Upload finished EXE
         uses: actions/upload-artifact@v4
         with:
-          name: PhotoRefSorter-Windows
+          name: PhotoRefSorter-Windows-v0.5
           path: |
             dist/PhotoRefSorter.exe
             dist/PhotoRefSorter.exe.sha256.txt
