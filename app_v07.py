@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
+import traceback
 
 os.environ.setdefault('QT_ENABLE_HIGHDPI_SCALING', '1')
 
@@ -32,6 +33,15 @@ class Main(V06Main):
                 self._pro_ui.refresh_status()
             return
         super().refresh_home()
+
+    def refresh_settings(self):
+        if hasattr(self, '_folder_ui'):
+            ctl = self._folder_ui
+            extra = f"\n기존 데이터 자동 이전: {BOOT_STATE.migrated_from}" if BOOT_STATE.migrated_from else ''
+            fallback = '\n※ EXE 폴더에 쓸 수 없어 사용자 프로필로 자동 전환되었습니다.' if BOOT_STATE.portable_fallback else ''
+            ctl.storage_info.setText(f"현재 데이터: {BOOT_STATE.data_dir}\n설정 파일: {SETTINGS.path}{extra}{fallback}")
+            return
+        super().refresh_settings()
 
     def scan_progress(self, i, n, name, speed, cached, new):
         super().scan_progress(i, n, name, speed, cached, new)
@@ -67,8 +77,8 @@ def ui_smoke_test() -> int:
             app.processEvents()
         w.close(); app.processEvents()
         return 0
-    except Exception as ex:
-        print('V0.7 UI SMOKE TEST FAILED', repr(ex))
+    except Exception:
+        traceback.print_exc()
         return 1
 
 
